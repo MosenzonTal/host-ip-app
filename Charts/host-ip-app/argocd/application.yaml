@@ -8,9 +8,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/MosenzonTal/host-ip-chart
+    repoURL: https://github.com/MosenzonTal/host-ip-app
     targetRevision: HEAD  
-    path: host-ip-app
+    path: charts
     directory:
       recurse: true
   destination:
