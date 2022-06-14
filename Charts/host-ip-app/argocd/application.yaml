@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: host-ip
+  namespace: argocd
+  labels:
+    name: host-ip
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MosenzonTal/host-ip-chart
+    targetRevision: HEAD  
+    path: host-ip-app
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated: 
+      prune: true
+      selfHeal: false
+
+# 1. auto-sync: auto syncing git repo and every 3 minutes and sets the git state into the cluster
+# 2. self-heal: if enabled, manual changes in the cluster wont be available
+# 3. auto-prune: if enabled, things removed in git would be deleted in the cluster. (if disabled won't delete from cluster, git removals).

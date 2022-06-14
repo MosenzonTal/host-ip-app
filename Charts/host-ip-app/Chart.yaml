@@ -1,0 +1,6 @@
+#metadata about my chart
+apiVersion: v1
+name: hostIpApp
+version: 0.1.0
+appVersion: 1.0
+description: my host-ip application chart
