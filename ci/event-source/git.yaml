@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-access
+  namespace: argo
+  uid: 8da39c6b-d8db-4ce3-92c2-d43869f8a153
+  resourceVersion: '37024'
+  creationTimestamp: '2022-06-14T12:03:06Z'
+  managedFields:
+    - manager: kubectl-create
+      operation: Update
+      apiVersion: v1
+      time: '2022-06-14T12:03:06Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:data:
+          .: {}
+          f:token: {}
+        f:type: {}
+  selfLink: /api/v1/namespaces/argo/secrets/github-access
+data:
+  token: Z2hwX0luMzJHSXM0TUc3RGl3UDNMb1pzZmczQlhuSUxxSDNsSjZnMA==
+type: Opaque

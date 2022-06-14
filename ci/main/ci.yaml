@@ -1,0 +1,132 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: ci-
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: IMAGE_NAME
+      value: 409782255447.dkr.ecr.us-east-1.amazonaws.com/host-ip
+    - name: GIT_REPO
+      value: https://github.com/MosenzonTal/host-ip-app.git
+    - name: GIT_REVISION
+      value: 8f76491c3b2ae90f0b66db132f9d6f9921f26dac
+    - name: GIT_BRANCH
+      value: feature
+  volumes:
+  - name: docker-config
+    secret:
+      items:
+      - key: .dockerconfigjson
+        path: config.json
+      secretName: docker-config
+  templates:
+  - name: main
+    dag:
+      tasks:
+      - name: git-clone
+        template: git-clone
+
+      # - name: build
+      #   depends: git-clone
+      #   arguments:
+      #     artifacts:
+      #     - name: repo
+      #       from: '{{ tasks.git-clone.outputs.artifacts.repo-src }}'
+      #   template: build
+       
+      - name: promote
+        depends: git-clone
+        # depends: build
+        template: promote
+
+  - name: git-clone
+    inputs:
+      artifacts:
+      - name: argo-source
+        path: /src
+        git:
+          repo: '{{ workflow.parameters.GIT_REPO}}'
+          revision: '{{ workflow.parameters.GIT_REVISION}}'
+          usernameSecret:
+            name: github-creds
+            key: username
+          passwordSecret:
+            name: github-creds
+            key: password
+    container:
+      image: golang:1.10
+      command: [sh, -c]
+      args: ["pwd && ls"]
+      workingDir: /src
+    outputs:
+      artifacts:
+      - name: repo-src
+        path: /src 
+
+  - name: build
+    inputs:
+      parameters:
+      - name: IMAGE_NAME
+        value: '{{ workflow.parameters.IMAGE_NAME}}'
+      - name: TAG
+        value: '{{ workflow.parameters.GIT_BRANCH}}'
+      artifacts:
+      - name: repo
+        path: /repo
+    container:
+      image: gcr.io/kaniko-project/executor:v1.7.0
+      workingDir: '{{ inputs.artifacts.repo.path }}'
+      command: ["/kaniko/executor"]
+      args:
+        - --cache
+        - --cache-copy-layers
+        - --cache-repo={{ inputs.parameters.IMAGE_NAME }}-cache
+        - --reproducible
+        - --context=.
+        - --dockerfile=Dockerfile
+        - --destination={{ inputs.parameters.IMAGE_NAME }}:{{ inputs.parameters.TAG }}
+      volumeMounts:
+        - mountPath: /kaniko/.docker/
+          name: docker-config
+      
+  - name: promote
+    inputs:
+      parameters:
+      - name: TAG
+        value: '{{ workflow.parameters.GIT_BRANCH}}'
+      artifacts:
+      - name: repo
+        path: /src
+        git:
+          repo: https://github.com/MosenzonTal/host-ip-app.git
+          revision: '{{ workflow.parameters.GIT_REVISION}}'
+          usernameSecret:
+            name: github-creds
+            key: username
+          passwordSecret:
+            name: github-creds
+            key: password
+    script:
+      image: bitnami/git
+      workingDir: '{{ inputs.artifacts.repo.path }}/Charts/host-ip-app/templates/'
+      command: [sh]
+      source: |
+        git checkout main
+        new_tag='{{inputs.parameters.TAG}}'
+        old_tag=$(sed -n '20p' statefulset.yaml | grep -o '[^:]*$')
+        echo replacing $old_tag with $new_tag
+        sed -i "s/$old_tag/$new_tag/" statefulset.yaml
+        git config --global user.name talmosenzon
+        git config --global user.email talmosenzon@gmail.com
+        git remote set-url origin https://talmosenzon:$GIT_TOKEN@github.com/MosenzonTal/host-ip-app.git
+        git add -A
+        git commit -m "upgraded new version of image with tag: '{{inputs.parameters.TAG}}'"
+        git push -f origin main
+      env:
+      - name: GIT_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: github-creds
+            key: password

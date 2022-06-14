@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: ci
+spec:
+  service:
+    ports:
+      - name: example
+        port: 12000
+        targetPort: 12000
+  github:
+    example:
+      repositories:
+        - owner: MosenzonTal
+          names:
+            - host-ip-app
+      webhook:
+        endpoint: /push
+        port: "12000"
+        method: POST
+        # url: http://url-that-is-reachable-from-GitHub
+      events:
+        - push
+      apiToken:
+        name: github-access
+        key: token
+      insecure: true
+      # Determines if notifications are sent when the webhook is triggered
+      active: true
+      contentType: json
+      
