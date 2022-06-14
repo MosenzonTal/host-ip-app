@@ -28,17 +28,17 @@ spec:
       - name: git-clone
         template: git-clone
 
-      # - name: build
-      #   depends: git-clone
-      #   arguments:
-      #     artifacts:
-      #     - name: repo
-      #       from: '{{ tasks.git-clone.outputs.artifacts.repo-src }}'
-      #   template: build
+      - name: build
+        depends: git-clone
+        arguments:
+          artifacts:
+          - name: repo
+            from: '{{ tasks.git-clone.outputs.artifacts.repo-src }}'
+        template: build
        
       - name: promote
-        depends: git-clone
-        # depends: build
+        # depends: git-clone
+        depends: build
         template: promote
 
   - name: git-clone
