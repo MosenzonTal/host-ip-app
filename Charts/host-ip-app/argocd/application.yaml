@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/MosenzonTal/host-ip-app
     targetRevision: HEAD  
-    path: Charts
+    path: Charts/host-ip-app/
     directory:
       recurse: true
   destination:
