@@ -5,8 +5,7 @@ metadata:
 spec:
   service:
     ports:
-      - name: example
-        port: 12000
+      - port: 12000
         targetPort: 12000
   github:
     example:
@@ -18,14 +17,15 @@ spec:
         endpoint: /push
         port: "12000"
         method: POST
-        # url: http://url-that-is-reachable-from-GitHub
+        url: https://ea54-147-235-196-17.eu.ngrok.io
       events:
-        - push
+        - pull_request
       apiToken:
         name: github-access
         key: token
-      insecure: true
-      # Determines if notifications are sent when the webhook is triggered
+      insecure: false
       active: true
       contentType: json
+      deleteHookOnFinish: true
+
       

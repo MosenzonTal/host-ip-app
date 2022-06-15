@@ -1,19 +1,16 @@
 apiVersion: argoproj.io/v1alpha1
-kind: Workflow
+kind: WorkflowTemplate
 metadata:
-  generateName: ci-
+  name: ci
 spec:
   entrypoint: main
   arguments:
     parameters:
+    - name: GIT_REPO
+    - name: GIT_REVISION
+    - name: PR_NUMBER
     - name: IMAGE_NAME
       value: 409782255447.dkr.ecr.us-east-1.amazonaws.com/host-ip
-    - name: GIT_REPO
-      value: https://github.com/MosenzonTal/host-ip-app.git
-    - name: GIT_REVISION
-      value: 8f76491c3b2ae90f0b66db132f9d6f9921f26dac
-    - name: GIT_BRANCH
-      value: feature
   volumes:
   - name: docker-config
     secret:
@@ -27,28 +24,45 @@ spec:
       tasks:
       - name: git-clone
         template: git-clone
-
+        arguments:
+          parameters:
+          - name: GIT_REPO
+            value: '{{ workflow.parameters.GIT_REPO }}'
+          - name: GIT_REVISION
+            value: '{{ workflow.parameters.GIT_REVISION }}'
+      
       - name: build
         depends: git-clone
         arguments:
+          parameters:
+          - name: PR_NUMBER
+            value: '{{ workflow.parameters.PR_NUMBER }}'
           artifacts:
           - name: repo
             from: '{{ tasks.git-clone.outputs.artifacts.repo-src }}'
         template: build
        
       - name: promote
-        # depends: git-clone
         depends: build
+        arguments:
+          parameters:
+          - name: PR_NUMBER
+            value: '{{ workflow.parameters.PR_NUMBER }}'
+          - name: GIT_REVISION
+            value: '{{ workflow.parameters.GIT_REVISION }}'
         template: promote
 
   - name: git-clone
     inputs:
+      parameters:
+      - name: GIT_REPO
+      - name: GIT_REVISION
       artifacts:
       - name: argo-source
         path: /src
         git:
-          repo: '{{ workflow.parameters.GIT_REPO}}'
-          revision: '{{ workflow.parameters.GIT_REVISION}}'
+          repo: '{{inputs.parameters.GIT_REPO}}'
+          revision: '{{inputs.parameters.GIT_REVISION}}'
           usernameSecret:
             name: github-creds
             key: username
@@ -68,10 +82,7 @@ spec:
   - name: build
     inputs:
       parameters:
-      - name: IMAGE_NAME
-        value: '{{ workflow.parameters.IMAGE_NAME}}'
-      - name: TAG
-        value: '{{ workflow.parameters.GIT_BRANCH}}'
+      - name: PR_NUMBER
       artifacts:
       - name: repo
         path: /repo
@@ -82,11 +93,11 @@ spec:
       args:
         - --cache
         - --cache-copy-layers
-        - --cache-repo={{ inputs.parameters.IMAGE_NAME }}-cache
+        - --cache-repo={{ workflow.parameters.IMAGE_NAME }}-cache
         - --reproducible
         - --context=.
         - --dockerfile=Dockerfile
-        - --destination={{ inputs.parameters.IMAGE_NAME }}:{{ inputs.parameters.TAG }}
+        - --destination={{ workflow.parameters.IMAGE_NAME }}:{{ inputs.parameters.PR_NUMBER }}
       volumeMounts:
         - mountPath: /kaniko/.docker/
           name: docker-config
@@ -94,14 +105,14 @@ spec:
   - name: promote
     inputs:
       parameters:
-      - name: TAG
-        value: '{{ workflow.parameters.GIT_BRANCH}}'
+      - name: PR_NUMBER
+      - name: GIT_REVISION
       artifacts:
       - name: repo
         path: /src
         git:
           repo: https://github.com/MosenzonTal/host-ip-app.git
-          revision: '{{ workflow.parameters.GIT_REVISION}}'
+          revision: '{{inputs.parameters.GIT_REVISION}}'
           usernameSecret:
             name: github-creds
             key: username
@@ -110,11 +121,11 @@ spec:
             key: password
     script:
       image: bitnami/git
-      workingDir: '{{ inputs.artifacts.repo.path }}/Charts/host-ip-app/templates/'
+      workingDir: '{{ inputs.artifacts.repo.path }}/Release-life-cycle/host-ip-app/templates/'
       command: [sh]
       source: |
         git checkout main
-        new_tag='{{inputs.parameters.TAG}}'
+        new_tag='{{inputs.parameters.PR_NUMBER}}'
         old_tag=$(sed -n '20p' statefulset.yaml | grep -o '[^:]*$')
         echo replacing $old_tag with $new_tag
         sed -i "s/$old_tag/$new_tag/" statefulset.yaml
@@ -122,7 +133,7 @@ spec:
         git config --global user.email talmosenzon@gmail.com
         git remote set-url origin https://talmosenzon:$GIT_TOKEN@github.com/MosenzonTal/host-ip-app.git
         git add -A
-        git commit -m "upgraded new version of image with tag: '{{inputs.parameters.TAG}}'"
+        git commit -m "upgraded new version of image with tag: '{{inputs.parameters.PR_NUMBER}}'"
         git push -f origin main
       env:
       - name: GIT_TOKEN

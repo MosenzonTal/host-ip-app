@@ -1,82 +1,68 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Sensor
 metadata:
-  name: ci-
+  name: ci-push
 spec:
   template:
-    serviceAccountName: argo-event-sa
+    serviceAccountName: operate-workflow-sa
   dependencies:
-    - name: test-dep
-      eventSourceName: github
+    - name: ci-push
+      eventSourceName: ci
       eventName: example
-      filters:
-        data:
-          # Name of the event that triggered the delivery: [pull_request, push, yadayadayada]
-          # https://docs.github.com/en/developers/webhooks-and-events/webhook-events-and-payloads
-          - path: body.X-GitHub-Event
-            type: string
-            value:
-              - pull_request
-          - path: body.action
-            type: string
-            value:
-              - opened
-              - edited
-              - reopened
-              - synchronize
-          - path: body.pull_request.state
-            type: string
-            value:
-              - open
-          - path: body.pull_request.base.ref
-            type: string
-            value:
-              - master
+      # filters:
+      #   data:
+      #     - path: body.X-GitHub-Event
+      #       value:
+      #         - push
+      #       type: string
+      #     - path: body.ref
+      #       comparator: '='
+      #       template: '{{ trimPrefix "refs/heads/" .Input }}'
+      #       type: string
+      #       value:
+      #         - main
+      #     - path: body.deleted
+      #       type: bool
+      #       value:
+      #         - 'false'
+      #     - path: body.ref
+      #       template: '{{ (split "/" .Input)._1 }}'
+      #       value:
+      #         - heads
+      #       type: string
   triggers:
     - template:
+        conditions: "ci-push"
         name: github-workflow-trigger
-        k8s:
-          operation: create
+        argoWorkflow:
+          group: argoproj.io
+          version: v1alpha1
+          resource: workflows
+          operation: submit
           source:
             resource:
               apiVersion: argoproj.io/v1alpha1
               kind: Workflow
               metadata:
-                name: github-
+                generateName: ci-build-
               spec:
-                entrypoint: whalesay
+                workflowTemplateRef:
+                  name: ci
                 arguments:
                   parameters:
-                    - name: pr-title
-                    - name: pr-number
-                    - name: short-sha
-                templates:
-                  - name: whalesay
-                    inputs:
-                      parameters:
-                        - name: pr-title
-                        - name: pr-number
-                        - name: short-sha
-                    container:
-                      image: docker/whalesay:latest
-                      command: [cowsay]
-                      args: ["{{inputs.parameters.pr-title}}"]
+                  - name: GIT_REPO
+                  - name: GIT_REVISION
+                  - name: PR_NUMBER
           parameters:
-            - src:
-                dependencyName: test-dep
-                dataKey: body.pull_request.title
-              dest: spec.arguments.parameters.0.value
-            - src:
-                dependencyName: test-dep
+            - dest: spec.arguments.parameters.0.value
+              src:
+                dependencyName: ci-push
+                dataTemplate: '{{ .Input.body.repository.clone_url }}'
+            - dest: spec.arguments.parameters.1.value
+              src:
+                dependencyName: ci-push
                 dataKey: body.pull_request.number
-              dest: spec.arguments.parameters.1.value
-            - src:
-                dependencyName: test-dep
-                dataTemplate: "{{ .Input.body.pull_request.head.sha | substr 0 7 }}"
-              dest: spec.arguments.parameters.2.value
-            # Append pull request number and short sha to dynamically assign workflow name <github-21500-2c065a>
-            - src:
-                dependencyName: test-dep
-                dataTemplate: "{{ .Input.body.pull_request.number }}-{{ .Input.body.pull_request.head.sha | substr 0 7 }}"
-              dest: metadata.name
-              operation: append
+            - dest: spec.arguments.parameters.2.value
+              src:
+                dependencyName: ci-push
+                dataKey: body.pull_request.number
