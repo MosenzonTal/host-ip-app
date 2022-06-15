@@ -17,7 +17,7 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: hostip
-        image: 409782255447.dkr.ecr.us-east-1.amazonaws.com/host-ip:latest
+        image: 409782255447.dkr.ecr.us-east-1.amazonaws.com/host-ip:2
         ports:
         - containerPort: 5000
           name: web
